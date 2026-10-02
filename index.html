@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="th" data-theme="light" data-accent="sunny">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#EEEDEA">
+  <meta name="description" content="เครื่องเล่นเพลงสไตล์ neumorphism เลือกไฟล์เพลงจากเครื่องมาเล่นบนเว็บ พร้อมอีควอไลเซอร์แอนิเมชันตามเสียง">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Neumorph">
+  <title>Neumorph Music</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prompt:wght@200;300;400;500&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Apply saved theme before first paint to avoid a flash
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('nm.settings') || '{}');
+        var t = s.theme || 'light';
+        if (t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = t;
+        document.documentElement.dataset.accent = s.accent || 'sunny';
+      } catch (e) {}
+      // the manifest can't be fetched from file://, only link it when served over http(s)
+      if (/^https?:$/.test(location.protocol)) {
+        var link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = 'manifest.webmanifest';
+        document.head.appendChild(link);
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <aside class="intro">
+    <h1 class="intro-title">neumorph<span>music</span></h1>
+    <p class="intro-th">เครื่องเล่นเพลงสายนุ่ม</p>
+    <p class="intro-sub">ให้การฟังเพลงกลับมามีสัมผัสที่อ่อนโยน</p>
+    <div class="intro-dots"><i class="on"></i><i></i><i></i></div>
+    <p class="intro-desc">เลือกไฟล์เพลงจากเครื่องของคุณแล้วเล่นได้ทันที<br>ไฟล์ถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น ไม่มีการอัปโหลด</p>
+    <ul class="keys">
+      <li><span><kbd>Space</kbd></span> เล่น / หยุด</li>
+      <li><span><kbd>←</kbd><kbd>→</kbd></span> ถอยหลัง / เดินหน้า 5 วินาที</li>
+      <li><span><kbd>↑</kbd><kbd>↓</kbd></span> ระดับเสียง</li>
+      <li><span><kbd>P</kbd><kbd>N</kbd></span> เพลงก่อนหน้า / ถัดไป</li>
+    </ul>
+    <p class="intro-desc">ลากไฟล์เพลงมาวางบนหน้าจอเพื่อเพิ่มเข้าคลังได้เลย</p>
+  </aside>
+
+  <main class="phone" id="app">
+    <div class="screens">
+
+      <!-- ============ NOW PLAYING ============ -->
+      <section class="screen screen-player active" data-screen="player" aria-label="กำลังเล่น">
+        <header class="topbar">
+          <button class="nbtn sm" data-goto="library" aria-label="ไปที่คลังเพลง">
+            <svg><use href="#i-list"/></svg>
+          </button>
+          <div class="topbar-center">
+            <span class="eyebrow">now playing</span>
+            <span class="topbar-sub" id="np-count">ยังไม่ได้เลือกเพลง</span>
+          </div>
+          <button class="nbtn sm fav-btn" id="btn-fav" aria-label="ชื่นชอบ" aria-pressed="false">
+            <svg><use href="#i-heart"/></svg>
+          </button>
+        </header>
+
+        <div class="dial-wrap">
+          <div class="dial" id="dial" role="slider" tabindex="0" aria-label="ตำแหน่งเพลง"
+               aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="dial-groove"></div>
+            <svg class="dial-ring" viewBox="0 0 200 200" aria-hidden="true">
+              <defs>
+                <linearGradient id="g-ring" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" class="stop-a1"/>
+                  <stop offset="1" class="stop-a2"/>
+                </linearGradient>
+              </defs>
+              <circle class="ring-progress" id="ring-progress" cx="100" cy="100" r="75"
+                      pathLength="100" transform="rotate(-90 100 100)"/>
+            </svg>
+            <div class="dial-knob" id="dial-knob"></div>
+            <button class="dial-core" id="dial-core" aria-label="เล่น / หยุด">
+              <canvas class="radial-canvas" id="radial-canvas"></canvas>
+              <span class="orb" id="orb"></span>
+            </button>
+          </div>
+          <div class="times"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
+        </div>
+
+        <div class="meta">
+          <h2 class="np-title" id="np-title">ยังไม่มีเพลง</h2>
+          <p class="np-artist" id="np-artist">เพิ่มเพลงจากเครื่องได้ที่คลังเพลง</p>
+        </div>
+
+        <div class="viz-panel" id="viz-panel" title="แตะเพื่อเปลี่ยนรูปแบบแอนิเมชัน">
+          <canvas id="viz-canvas"></canvas>
+          <span class="db-chip" id="db-chip"><b id="db-val">-∞</b> dB</span>
+        </div>
+
+        <div class="controls">
+          <button class="nbtn sm toggle" id="btn-shuffle" aria-label="สุ่มเพลง" aria-pressed="false">
+            <svg><use href="#i-shuffle"/></svg>
+          </button>
+          <button class="nbtn md" id="btn-prev" aria-label="เพลงก่อนหน้า">
+            <svg><use href="#i-prev"/></svg>
+          </button>
+          <button class="nbtn lg play-btn" id="btn-play" aria-label="เล่น">
+            <svg class="i-play"><use href="#i-play"/></svg>
+            <svg class="i-pause"><use href="#i-pause"/></svg>
+          </button>
+          <button class="nbtn md" id="btn-next" aria-label="เพลงถัดไป">
+            <svg><use href="#i-next"/></svg>
+          </button>
+          <button class="nbtn sm toggle repeat-btn" id="btn-repeat" aria-label="เล่นซ้ำ">
+            <svg><use href="#i-repeat"/></svg>
+            <span class="badge">1</span>
+          </button>
+        </div>
+
+        <div class="volume">
+          <svg><use href="#i-vol-low"/></svg>
+          <input type="range" class="nrange" id="vol" min="0" max="100" value="85" aria-label="ระดับเสียง">
+          <svg><use href="#i-vol-high"/></svg>
+        </div>
+      </section>
+
+      <!-- ============ LIBRARY ============ -->
+      <section class="screen screen-library" data-screen="library" aria-label="คลังเพลง">
+        <header class="page-head">
+          <div>
+            <h1 class="page-title">คลังเพลง</h1>
+            <p class="page-sub" id="lib-summary">0 เพลง</p>
+          </div>
+          <button class="nbtn sm folder-btn" id="btn-folder" aria-label="เพิ่มทั้งโฟลเดอร์" title="เพิ่มทั้งโฟลเดอร์">
+            <svg><use href="#i-folder"/></svg>
+          </button>
+        </header>
+
+        <div class="search-row">
+          <label class="search">
+            <svg><use href="#i-search"/></svg>
+            <input type="search" id="search" placeholder="ค้นหาเพลง ศิลปิน อัลบั้ม" autocomplete="off" enterkeyhint="search">
+          </label>
+          <button class="nbtn md add-btn" id="btn-add" aria-label="เลือกไฟล์เพลงจากเครื่อง">
+            <svg><use href="#i-plus"/></svg>
+          </button>
+        </div>
+
+        <div class="chips" id="lib-filter">
+          <button class="chip active" data-filter="all">ทั้งหมด</button>
+          <button class="chip" data-filter="fav">ชื่นชอบ</button>
+        </div>
+
+        <div class="list-wrap">
+          <ul class="tracks" id="tracks"></ul>
+
+          <div class="empty" id="lib-empty" hidden>
+            <div class="tiles"><i></i><i class="on"></i><i></i><i></i></div>
+            <h3>ยังไม่มีเพลงในคลัง</h3>
+            <p>แตะปุ่ม + เพื่อเลือกไฟล์เพลงจากเครื่อง<br>หรือลากไฟล์มาวางบนหน้าจอ</p>
+            <div class="empty-actions">
+              <button class="pill-btn accent" data-act="pick">เลือกไฟล์เพลง</button>
+              <button class="pill-btn" data-act="demo">ลองเพลงตัวอย่าง</button>
+            </div>
+          </div>
+
+          <p class="no-result" id="lib-noresult" hidden>ไม่พบเพลงที่ค้นหา</p>
+        </div>
+      </section>
+
+      <!-- ============ EQUALIZER ============ -->
+      <section class="screen screen-eq" data-screen="eq" aria-label="อีควอไลเซอร์">
+        <header class="page-head">
+          <div>
+            <h1 class="page-title">อีควอไลเซอร์</h1>
+            <p class="page-sub">ปรับแต่งเสียง 10 ย่านความถี่</p>
+          </div>
+          <button class="switch" id="eq-switch" role="switch" aria-checked="true" aria-label="เปิด / ปิดอีควอไลเซอร์"></button>
+        </header>
+
+        <div class="eq-graph">
+          <canvas id="eq-canvas"></canvas>
+        </div>
+
+        <div class="chips scroll-x" id="eq-presets"></div>
+
+        <div class="eq-bands" id="eq-bands"></div>
+
+        <div class="row-between">
+          <span class="hint">แตะสองครั้งที่แถบเพื่อกลับเป็น 0 dB</span>
+          <button class="pill-btn" id="eq-reset">รีเซ็ต</button>
+        </div>
+      </section>
+
+      <!-- ============ SETTINGS ============ -->
+      <section class="screen screen-settings" data-screen="settings" aria-label="ตั้งค่า">
+        <header class="page-head">
+          <div>
+            <h1 class="page-title">ตั้งค่า</h1>
+            <p class="page-sub">ปรับหน้าตาให้เป็นแบบของคุณ</p>
+          </div>
+        </header>
+
+        <div class="card">
+          <div class="card-label">ธีม</div>
+          <div class="segmented" id="theme-seg">
+            <button data-value="light"><svg><use href="#i-sun"/></svg><span>สว่าง</span></button>
+            <button data-value="auto"><svg><use href="#i-cloud"/></svg><span>อัตโนมัติ</span></button>
+            <button data-value="dark"><svg><use href="#i-moon"/></svg><span>มืด</span></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">สีหลัก</div>
+          <div class="swatches" id="accent-swatches">
+            <button class="swatch" data-accent="sunny" aria-label="เหลืองซันนี่"></button>
+            <button class="swatch" data-accent="orange" aria-label="ส้ม"></button>
+            <button class="swatch" data-accent="rose" aria-label="ชมพู"></button>
+            <button class="swatch" data-accent="lilac" aria-label="ม่วง"></button>
+            <button class="swatch" data-accent="sky" aria-label="ฟ้า"></button>
+            <button class="swatch" data-accent="mint" aria-label="มิ้นต์"></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">แอนิเมชันอีควอไลเซอร์</div>
+          <div class="opt-tiles" id="viz-opts">
+            <button data-value="bars"><svg><use href="#i-viz-bars"/></svg><span>แท่ง</span></button>
+            <button data-value="mirror"><svg><use href="#i-viz-mirror"/></svg><span>สะท้อน</span></button>
+            <button data-value="wave"><svg><use href="#i-viz-wave"/></svg><span>คลื่น</span></button>
+          </div>
+          <div class="setting-row">
+            <div class="row-between"><span>ความไวต่อเสียง</span><span class="val" id="sens-val">100%</span></div>
+            <input type="range" class="nrange" id="sens" min="50" max="150" value="100" aria-label="ความไวต่อเสียง">
+          </div>
+          <div class="setting-row">
+            <div class="row-between"><span>ความนุ่มนวล</span><span class="val" id="smooth-val">60%</span></div>
+            <input type="range" class="nrange" id="smooth" min="0" max="100" value="60" aria-label="ความนุ่มนวลของแอนิเมชัน">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">พื้นที่จัดเก็บ</div>
+          <div class="row-between">
+            <span class="storage-info" id="storage-info">กำลังตรวจสอบ…</span>
+            <button class="pill-btn danger" id="btn-clear">ล้างคลังเพลง</button>
+          </div>
+        </div>
+
+        <div class="quote">
+          <span class="quote-mark">“</span>
+          <p>good design is<br>as little design as possible.</p>
+          <svg class="quote-wave" viewBox="0 0 200 64" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="g-wave" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" class="stop-a1" stop-opacity=".75"/>
+                <stop offset="1" class="stop-a1" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0 64V52c22-2 40 2 62-6s34-22 58-24 38-14 52-16 20 2 28 0v58Z" fill="url(#g-wave)"/>
+            <path d="M0 52c22-2 40 2 62-6s34-22 58-24 38-14 52-16 20 2 28 0" class="quote-line"/>
+          </svg>
+          <span class="quote-dot"></span>
+          <small>neumorph music · v1.0</small>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ DOCK: mini player + tab bar ============ -->
+    <div class="dock">
+      <div class="mini" id="mini" hidden>
+        <button class="mini-open" id="mini-open" aria-label="เปิดหน้ากำลังเล่น">
+          <span class="mini-art" id="mini-art"></span>
+          <span class="mini-text">
+            <span class="mini-title" id="mini-title"></span>
+            <span class="mini-artist" id="mini-artist"></span>
+          </span>
+        </button>
+        <div class="mini-ctrl">
+          <button class="nbtn xs" id="mini-prev" aria-label="เพลงก่อนหน้า"><svg><use href="#i-prev"/></svg></button>
+          <button class="nbtn sm play-btn" id="mini-play" aria-label="เล่น">
+            <svg class="i-play"><use href="#i-play"/></svg>
+            <svg class="i-pause"><use href="#i-pause"/></svg>
+          </button>
+          <button class="nbtn xs" id="mini-next" aria-label="เพลงถัดไป"><svg><use href="#i-next"/></svg></button>
+        </div>
+        <div class="mini-seek">
+          <span id="mini-cur">0:00</span>
+          <input type="range" class="nrange thin" id="mini-range" min="0" max="1000" value="0" aria-label="ตำแหน่งเพลง">
+          <span id="mini-dur">0:00</span>
+        </div>
+      </div>
+
+      <nav class="tabbar" aria-label="เมนูหลัก">
+        <button class="tab active" data-goto="player"><svg><use href="#i-disc"/></svg><span>กำลังเล่น</span></button>
+        <button class="tab" data-goto="library"><svg><use href="#i-list"/></svg><span>คลังเพลง</span></button>
+        <button class="tab" data-goto="eq"><svg><use href="#i-sliders"/></svg><span>อีคิว</span></button>
+        <button class="tab" data-goto="settings"><svg><use href="#i-settings"/></svg><span>ตั้งค่า</span></button>
+      </nav>
+    </div>
+
+    <div class="drop" id="drop" aria-hidden="true">
+      <div>
+        <svg><use href="#i-note"/></svg>
+        <p>วางไฟล์เพลงเพื่อเพิ่มเข้าคลัง</p>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <input type="file" id="file-input" multiple hidden
+         accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.webm,.weba">
+  <input type="file" id="folder-input" multiple hidden webkitdirectory>
+
+  <!-- Icon sprite -->
+  <svg class="sprite" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path class="fill" d="M8 5.6v12.8a1.1 1.1 0 0 0 1.7.93l10-6.4a1.1 1.1 0 0 0 0-1.86l-10-6.4A1.1 1.1 0 0 0 8 5.6Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect class="fill" x="6" y="5" width="4.2" height="14" rx="1.6"/><rect class="fill" x="13.8" y="5" width="4.2" height="14" rx="1.6"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path class="fill" d="M18.5 6.3v11.4a1 1 0 0 1-1.6.82L9 13.1a1.35 1.35 0 0 1 0-2.2l7.9-5.42a1 1 0 0 1 1.6.82Z"/><rect class="fill" x="5" y="5.5" width="2.6" height="13" rx="1.3"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path class="fill" d="M5.5 6.3v11.4a1 1 0 0 0 1.6.82L15 13.1a1.35 1.35 0 0 0 0-2.2L7.1 5.48a1 1 0 0 0-1.6.82Z"/><rect class="fill" x="16.4" y="5.5" width="2.6" height="13" rx="1.3"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path d="M12 12H3M16 6H3M12 18H3"/></symbol>
+    <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 12A5.5 5.5 0 0 1 12 6.5"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-vol-low" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></symbol>
+    <symbol id="i-vol-high" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6M9 13h6"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-viz-bars" viewBox="0 0 24 24"><path d="M4.5 20v-5M9.5 20V8M14.5 20v-9M19.5 20V4"/></symbol>
+    <symbol id="i-viz-mirror" viewBox="0 0 24 24"><path d="M4.5 9.5v5M9.5 5v14M14.5 7.5v9M19.5 10v4"/></symbol>
+    <symbol id="i-viz-wave" viewBox="0 0 24 24"><path d="M2 17c3 0 3.5-7 6.5-7s3 5 5.5 5 3.5-9 8-9"/><path d="M2 21h20"/></symbol>
+  </svg>
+
+  <script src="js/db.js"></script>
+  <script src="js/tags.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/demo.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
