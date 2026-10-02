@@ -88,7 +88,7 @@
             <div class="dial-knob" id="dial-knob"></div>
             <button class="dial-core" id="dial-core" aria-label="เล่น / หยุด">
               <canvas class="radial-canvas" id="radial-canvas"></canvas>
-              <span class="orb" id="orb"></span>
+              <span class="orb" id="orb"><svg class="orb-icon"><use href="#i-note-solid"/></svg></span>
             </button>
           </div>
           <div class="times"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
@@ -277,7 +277,7 @@
     <div class="dock">
       <div class="mini" id="mini" hidden>
         <button class="mini-open" id="mini-open" aria-label="เปิดหน้ากำลังเล่น">
-          <span class="mini-art" id="mini-art"></span>
+          <span class="mini-art" id="mini-art"><svg><use href="#i-note-solid"/></svg></span>
           <span class="mini-text">
             <span class="mini-title" id="mini-title"></span>
             <span class="mini-artist" id="mini-artist"></span>
@@ -343,6 +343,7 @@
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6M9 13h6"/></symbol>
     <symbol id="i-note" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-note-solid" viewBox="0 0 24 24"><path d="M9 17.5V5.2l11.5-2.2v12.4"/><path d="M9 9l11.5-2.2"/><circle class="fill" cx="6.1" cy="17.6" r="3.3"/><circle class="fill" cx="17.6" cy="15.4" r="3.3"/></symbol>
     <symbol id="i-viz-bars" viewBox="0 0 24 24"><path d="M4.5 20v-5M9.5 20V8M14.5 20v-9M19.5 20V4"/></symbol>
     <symbol id="i-viz-mirror" viewBox="0 0 24 24"><path d="M4.5 9.5v5M9.5 5v14M14.5 7.5v9M19.5 10v4"/></symbol>
     <symbol id="i-viz-wave" viewBox="0 0 24 24"><path d="M2 17c3 0 3.5-7 6.5-7s3 5 5.5 5 3.5-9 8-9"/><path d="M2 21h20"/></symbol>

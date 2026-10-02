@@ -175,6 +175,7 @@
     orb.style.backgroundImage = cover ? `url("${cover}")` : '';
     orb.classList.toggle('has-cover', !!cover);
     $('#mini-art').style.backgroundImage = cover ? `url("${cover}")` : '';
+    $('#mini-art').classList.toggle('has-cover', !!cover);
     $('#mini-title').textContent = t ? t.title : '';
     $('#mini-artist').textContent = t ? (t.artist || 'ไม่ทราบศิลปิน') : '';
     document.title = t ? `${t.title} · Neumorph Music` : 'Neumorph Music';

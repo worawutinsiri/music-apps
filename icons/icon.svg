@@ -26,4 +26,10 @@
   <circle cx="256" cy="256" r="124" fill="none" stroke="#E4E2DD" stroke-width="26"/>
   <path d="M256 132A124 124 0 1 1 139.5 298.4" fill="none" stroke="url(#arc)" stroke-width="16" stroke-linecap="round"/>
   <circle cx="256" cy="256" r="72" fill="url(#orb)" filter="url(#glow)"/>
+  <g transform="translate(216 218) scale(3.4)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 17.5V5.2l11.5-2.2v12.4"/>
+    <path d="M9 9l11.5-2.2"/>
+    <circle cx="6.1" cy="17.6" r="3.3" fill="#fff" stroke="none"/>
+    <circle cx="17.6" cy="15.4" r="3.3" fill="#fff" stroke="none"/>
+  </g>
 </svg>
