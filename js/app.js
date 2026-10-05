@@ -24,10 +24,11 @@
   ];
   const FREQ_LABELS = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
   const VIZ_NAMES = { bars: 'แท่ง', mirror: 'สะท้อน', wave: 'คลื่น' };
+  const CENTER_NAMES = { rays: 'รัศมี', ripple: 'ระลอก', liquid: 'ลิควิด', orbit: 'จุดโคจร' };
   const REPEAT_NAMES = { off: 'ไม่เล่นซ้ำ', all: 'เล่นซ้ำทั้งหมด', one: 'เล่นซ้ำเพลงเดียว' };
 
   const DEFAULTS = {
-    theme: 'light', accent: 'sunny', viz: 'bars', sensitivity: 1, smoothing: 0.6,
+    theme: 'light', accent: 'sunny', viz: 'bars', center: 'rays', sensitivity: 1, smoothing: 0.6,
     volume: 0.85, shuffle: false, repeat: 'all', filter: 'all',
     eqOn: true, preset: 'flat', gains: PRESETS[0].gains.slice(),
     lastId: null, lastTime: 0,
@@ -39,6 +40,8 @@
     try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { /* ignore */ }
     const s = { ...DEFAULTS, ...saved };
     if (!Array.isArray(s.gains) || s.gains.length !== 10) s.gains = DEFAULTS.gains.slice();
+    if (!(s.viz in VIZ_NAMES)) s.viz = DEFAULTS.viz;
+    if (!(s.center in CENTER_NAMES)) s.center = DEFAULTS.center;
     return s;
   })();
 
@@ -229,6 +232,7 @@
     rp.setAttribute('aria-label', REPEAT_NAMES[settings.repeat]);
     $$('#lib-filter .chip').forEach((c) => c.classList.toggle('active', c.dataset.filter === settings.filter));
     $$('#viz-opts button').forEach((b) => b.classList.toggle('active', b.dataset.value === settings.viz));
+    $$('#center-opts button').forEach((b) => b.classList.toggle('active', b.dataset.value === settings.center));
     const sens = $('#sens'), smooth = $('#smooth');
     sens.value = Math.round(settings.sensitivity * 100);
     smooth.value = Math.round(settings.smoothing * 100);
@@ -876,11 +880,12 @@
     const pt = (1 + pulse * 0.16).toFixed(3);
     if (pt !== pulseText) { orb.style.setProperty('--pulse', pt); pulseText = pt; }
 
-    const animating = playing || !panelBands.idle || !radialBands.idle || !eqBands.idle || pulse > 0.002;
+    const animating = playing || !panelBands.idle || !radialBands.idle || !eqBands.idle
+      || pulse > 0.002 || Viz.centerBusy;
     if (animating || forceDraw) {
       if (screen === 'player') {
         Viz.drawPanel(vizCanvas, panelBands, colors, settings.viz);
-        Viz.drawRadial(radialCanvas, radialBands, colors, pulse);
+        Viz.drawCenter(radialCanvas, radialBands, colors, { mode: settings.center, pulse, dt });
       } else if (screen === 'eq') {
         Viz.drawEq(eqCanvas, { freqs: CURVE_FREQS, curve: eqCurve, dots: eqDots, bands: eqBands, enabled: settings.eqOn }, colors);
       }
@@ -936,7 +941,35 @@
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); seekBy(5); }
     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); seekBy(-5); }
   });
-  $('#dial-core').addEventListener('click', togglePlay);
+  function setCenter(mode, announce = false) {
+    settings.center = mode;
+    syncToggles();
+    saveSoon();
+    requestDraw(true);
+    if (announce) toast(`แอนิเมชันตรงกลาง: ${CENTER_NAMES[mode]}`, 1200);
+  }
+
+  /* tap the orb to play / pause, long-press to switch the animation around it */
+  const core = $('#dial-core');
+  let pressTimer = 0, longPressed = false;
+  core.addEventListener('pointerdown', () => {
+    longPressed = false;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      const modes = Viz.CENTER_MODES;
+      setCenter(modes[(modes.indexOf(settings.center) + 1) % modes.length], true);
+      if (navigator.vibrate) navigator.vibrate(12);
+    }, 550);
+  });
+  for (const type of ['pointerup', 'pointerleave', 'pointercancel']) {
+    core.addEventListener(type, () => clearTimeout(pressTimer));
+  }
+  core.addEventListener('contextmenu', (e) => e.preventDefault());
+  core.addEventListener('click', () => {
+    if (longPressed) { longPressed = false; return; }
+    togglePlay();
+  });
 
   /* ---------- controls ---------- */
   $('#btn-play').addEventListener('click', togglePlay);
@@ -1067,6 +1100,11 @@
     settings.accent = b.dataset.accent;
     applyTheme();
     saveSoon();
+  });
+
+  $('#center-opts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-value]');
+    if (b) setCenter(b.dataset.value);
   });
 
   $('#viz-opts').addEventListener('click', (e) => {

@@ -233,16 +233,15 @@ const Viz = (() => {
     }
   }
 
-  /* ---------- radial spokes around the orb ---------- */
-  function drawRadial(canvas, bands, c, pulse) {
-    const s = fit(canvas);
-    if (!s) return;
-    const { g, w } = s;
-    g.clearRect(0, 0, w, w);
-    const cx = w / 2;
+  /* ---------- animations around the orb ---------- */
+  const CENTER_MODES = ['rays', 'ripple', 'liquid', 'orbit'];
+  const center = { mode: '', rot: 0, rings: [], avg: 0, cooldown: 0 };
+
+  /* band index for spoke k of a left/right mirrored ring */
+  const mirrored = (k, n) => (k < n ? k : 2 * n - 1 - k);
+
+  function drawRays(g, cx, w, bands, c, r0, maxLen) {
     const n = bands.count, total = n * 2;
-    const r0 = w * (0.27 + 0.025 * pulse);
-    const maxLen = w * 0.18;
     const grad = g.createRadialGradient(cx, cx, r0, cx, cx, r0 + maxLen);
     grad.addColorStop(0, c.a1);
     grad.addColorStop(1, c.a2);
@@ -250,8 +249,7 @@ const Viz = (() => {
     g.lineCap = 'round';
     g.lineWidth = Math.max(2, w * 0.016);
     for (let k = 0; k < total; k++) {
-      const i = k < n ? k : total - 1 - k; // mirror left/right
-      const v = bands.values[i];
+      const v = bands.values[mirrored(k, n)];
       const a = -Math.PI / 2 + ((k + 0.5) / total) * TAU;
       const len = 1 + v * maxLen;
       const cos = Math.cos(a), sin = Math.sin(a);
@@ -262,6 +260,141 @@ const Viz = (() => {
       g.stroke();
     }
     g.globalAlpha = 1;
+  }
+
+  /* rings that spread out from the orb on every bass hit */
+  function drawRipple(g, cx, w, bands, c, r0, dt) {
+    const bass = bands.energy(0, 5);
+    center.avg += (bass - center.avg) * Math.min(1, dt * 3);
+    center.cooldown -= dt;
+    if (bass > 0.16 && bass > center.avg * 1.18 + 0.03 && center.cooldown <= 0) {
+      center.rings.push({ r: r0, life: 1, strength: Math.min(1, 0.45 + bass) });
+      center.cooldown = 0.16;
+    }
+    const edge = w * 0.5;
+    const speed = (edge - r0) / 1.1;
+    center.rings = center.rings.filter((ring) => {
+      ring.r += speed * dt;
+      ring.life -= dt / 1.1;
+      return ring.life > 0 && ring.r < edge;
+    });
+
+    g.save();
+    g.shadowColor = c.glow;
+    g.shadowBlur = 8;
+    for (const ring of center.rings) {
+      g.globalAlpha = ring.life ** 1.4 * ring.strength;
+      g.strokeStyle = ring.life > 0.6 ? c.a2 : c.a1;
+      g.lineWidth = 1.2 + 3 * ring.life;
+      g.beginPath();
+      g.arc(cx, cx, ring.r, 0, TAU);
+      g.stroke();
+    }
+    g.restore();
+
+    // a soft halo that breathes with the overall level
+    const level = bands.energy(0, bands.count);
+    g.globalAlpha = 0.25 + level * 0.6;
+    g.strokeStyle = c.a1;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(cx, cx, r0 + 3 + level * w * 0.03, 0, TAU);
+    g.stroke();
+    g.globalAlpha = 1;
+  }
+
+  function blobPath(g, pts) {
+    const n = pts.length;
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const start = mid(pts[n - 1], pts[0]);
+    g.beginPath();
+    g.moveTo(start[0], start[1]);
+    for (let k = 0; k < n; k++) {
+      const m = mid(pts[k], pts[(k + 1) % n]);
+      g.quadraticCurveTo(pts[k][0], pts[k][1], m[0], m[1]);
+    }
+    g.closePath();
+  }
+
+  /* a smooth liquid outline whose radius follows the spectrum */
+  function drawLiquid(g, cx, w, bands, c, r0, maxLen, dt) {
+    center.rot += dt * 0.12;
+    const n = bands.count, total = n * 2;
+    const shape = (arr, scale) => {
+      // soften neighbouring bands so the outline stays round and fluid
+      let v = Array.from({ length: total }, (_, k) => arr[mirrored(k, n)]);
+      for (let pass = 0; pass < 2; pass++) {
+        v = v.map((x, k) => (v[(k - 1 + total) % total] + 2 * x + v[(k + 1) % total]) / 4);
+      }
+      return v.map((x, k) => {
+        const a = center.rot - Math.PI / 2 + (k / total) * TAU;
+        const r = r0 + 2 + x * maxLen * scale;
+        return [cx + Math.cos(a) * r, cx + Math.sin(a) * r];
+      });
+    };
+
+    blobPath(g, shape(bands.peaks, 1));
+    g.fillStyle = alpha(c.a1, 0.16);
+    g.fill();
+
+    const fill = g.createRadialGradient(cx, cx, r0, cx, cx, r0 + maxLen);
+    fill.addColorStop(0, alpha(c.a1, 0.6));
+    fill.addColorStop(1, alpha(c.a2, 0.22));
+    blobPath(g, shape(bands.values, 0.9));
+    g.fillStyle = fill;
+    g.fill();
+    g.save();
+    g.strokeStyle = c.a2;
+    g.lineWidth = 1.8;
+    g.shadowColor = c.glow;
+    g.shadowBlur = 8;
+    g.stroke();
+    g.restore();
+  }
+
+  /* dots circling the orb; louder music pushes them out and spins them faster */
+  function drawOrbit(g, cx, w, bands, c, r0, maxLen, dt) {
+    const level = bands.energy(0, bands.count);
+    center.rot += dt * (0.2 + level * 1.4);
+    const n = bands.count, total = n * 2;
+    const track = r0 + 5;
+
+    g.strokeStyle = c.line;
+    g.lineWidth = 1;
+    g.beginPath();
+    g.arc(cx, cx, track, 0, TAU);
+    g.stroke();
+
+    g.save();
+    g.shadowColor = c.glow;
+    g.shadowBlur = 6;
+    for (let k = 0; k < total; k++) {
+      const v = bands.values[mirrored(k, n)];
+      const a = center.rot - Math.PI / 2 + (k / total) * TAU;
+      const r = track + v * maxLen * 0.85;
+      g.globalAlpha = 0.35 + 0.65 * v;
+      g.fillStyle = v > 0.55 ? c.a2 : c.a1;
+      g.beginPath();
+      g.arc(cx + Math.cos(a) * r, cx + Math.sin(a) * r, w * (0.007 + v * 0.016), 0, TAU);
+      g.fill();
+    }
+    g.restore();
+    g.globalAlpha = 1;
+  }
+
+  function drawCenter(canvas, bands, c, { mode = 'rays', pulse = 0, dt = 0.016 } = {}) {
+    const s = fit(canvas);
+    if (!s) return;
+    const { g, w } = s;
+    g.clearRect(0, 0, w, w);
+    if (mode !== center.mode) { center.mode = mode; center.rings = []; }
+    const cx = w / 2;
+    const r0 = w * (0.27 + 0.025 * pulse);
+    const maxLen = w * 0.18;
+    if (mode === 'ripple') drawRipple(g, cx, w, bands, c, r0, dt);
+    else if (mode === 'liquid') drawLiquid(g, cx, w, bands, c, r0, maxLen, dt);
+    else if (mode === 'orbit') drawOrbit(g, cx, w, bands, c, r0, maxLen, dt);
+    else drawRays(g, cx, w, bands, c, r0, maxLen);
   }
 
   /* ---------- EQ response curve + live spectrum ---------- */
@@ -345,5 +478,8 @@ const Viz = (() => {
     g.globalAlpha = 1;
   }
 
-  return { Bands, drawPanel, drawRadial, drawEq, fit };
+  return {
+    Bands, drawPanel, drawCenter, drawEq, fit, CENTER_MODES,
+    get centerBusy() { return center.rings.length > 0; },
+  };
 })();

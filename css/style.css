@@ -322,6 +322,7 @@ kbd {
   border-radius: 50%;
   background: var(--convex);
   box-shadow: var(--sh-1);
+  -webkit-touch-callout: none;
 }
 .radial-canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; }
 .orb {
@@ -841,6 +842,12 @@ kbd {
   transition: box-shadow .2s ease, color .2s ease;
 }
 .opt-tiles svg { width: 24px; height: 24px; stroke-width: 2.2; }
+.opt-tiles.four { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.opt-tiles.four button { height: 70px; font-size: 12px; }
+.opt-tiles.four svg { stroke-width: 1.8; }
+.sub-label { margin: 4px 0 10px; font-size: 13px; color: var(--text-2); }
+.sub-label span { font-size: 11.5px; color: var(--muted); }
+.opt-tiles + .sub-label { margin-top: 18px; }
 .opt-tiles button.active { color: var(--a2); background: var(--bg); box-shadow: var(--in-s); }
 
 .setting-row { margin-top: 16px; font-size: 13.5px; color: var(--text-2); }
